@@ -11,19 +11,19 @@ responsabilidades por rol, variables parametrizadas, uso de módulos
 nativos en vez de comandos sueltos, y verificación de idempotencia como
 parte del flujo de trabajo, no como una ocurrencia tardía.
 
-La creación de la máquina virtual se delega en Vagrant en lugar de
-automatizarla con un rol de Ansible (por ejemplo, con `community.libvirt`).
-La razón es pragmática para un entorno de taller: Vagrant resuelve de
-forma declarativa y portable la descarga de la imagen, la configuración
-de red privada y el acceso SSH inicial, sin que cada estudiante tenga que
-depurar diferencias de virtualización en su propia máquina. Vagrant
-soporta tanto `libvirt` (recomendado en Linux, por rendimiento y por usar
-KVM nativo) como `virtualbox` (alternativa multiplataforma para quien no
-tenga KVM disponible), y el mismo `Vagrantfile` sirve para ambos casos sin
-modificarlo. A propósito **no** se usa el provisioner `ansible` integrado
-de Vagrant: el playbook se ejecuta manualmente con `ansible-playbook` para
-que cada corrida —incluida la segunda, que debe reportar cero cambios—
-sea un paso visible y deliberado del taller.
+La creación de la máquina virtual se delega en **Vagrant + VirtualBox**
+en lugar de automatizarla con un rol de Ansible que hable directamente
+con la API de un hipervisor. La razón es pragmática para un entorno de
+taller: Vagrant resuelve de forma declarativa la descarga de la imagen,
+la configuración de red privada y el acceso SSH inicial, y VirtualBox es
+el hipervisor con la instalación más simple y uniforme entre Windows,
+macOS y Linux —justo el tipo de entorno heterogéneo que suele tener un
+grupo de estudiantes—, sin requisitos adicionales de virtualización a
+nivel de firmware/BIOS más allá de la virtualización por hardware
+estándar (VT-x/AMD-V). A propósito **no** se usa el provisioner
+`ansible` integrado de Vagrant: el playbook se ejecuta manualmente con
+`ansible-playbook` para que cada corrida —incluida la segunda, que debe
+reportar cero cambios— sea un paso visible y deliberado del taller.
 
 Los roles se dividen en `bootstrap` (garantizar que el nodo tiene Python
 y está actualizado, sin asumir nada sobre su estado inicial),
@@ -45,9 +45,7 @@ necesitas:
   distribución).
 - **Colecciones de Ansible** listadas en `requirements.yml`.
 - **Vagrant** >= 2.3.
-- Un hipervisor: **libvirt/QEMU-KVM** (Linux) o **VirtualBox** (cualquier
-  SO), y el plugin correspondiente de Vagrant si usas libvirt:
-  `vagrant plugin install vagrant-libvirt`.
+- **VirtualBox** >= 7.0 (el hipervisor que usa este proyecto).
 - Acceso a internet saliente desde la máquina de control (para descargar
   la box de Vagrant y las colecciones de Ansible) y desde la VM (para
   `dnf update` y los forwarders de DNS).
@@ -58,7 +56,8 @@ necesitas:
 .
 ├── ansible.cfg              # Configuración de Ansible (inventario, become, etc.)
 ├── requirements.yml         # Colecciones de Galaxy requeridas
-├── Vagrantfile              # Definición y arranque de la VM (Rocky Linux 9)
+├── Vagrantfile              # Definición y arranque de la VM (Rocky Linux 9 + VirtualBox)
+├── deploy.sh                # Script que encadena todos los comandos de la sección 4
 ├── site.yml                 # Playbook orquestador
 ├── inventory/
 │   └── hosts.yml            # Inventario estático (IP fija de la red privada)
@@ -82,7 +81,62 @@ detenerse a leer con cuidado es en `roles/dhcpd/` y `roles/bind9/`
 `group_vars/dns_servers.yml`, que es donde vive toda la configuración de
 red del laboratorio (rangos DHCP, dominio, registros DNS, zona inversa).
 
+### Cómo funciona el Vagrantfile
+
+El `Vagrantfile` es la única pieza del proyecto que no es Ansible: su
+trabajo termina en el momento en que la VM está encendida y accesible
+por SSH. Vale la pena entenderlo aunque tu foco sea la parte de
+servicios, porque explica *de dónde sale* la máquina sobre la que
+después corre todo lo demás. Léelo de arriba hacia abajo:
+
+- **`Vagrant.configure("2") do |config|`** — abre el bloque de
+  configuración usando la versión 2 del formato de Vagrant (la que usan
+  todas las versiones modernas). Todo lo que sigue, hasta el `end`
+  final, describe una o más máquinas virtuales.
+
+- **`config.vm.box = "rockylinux/9"`** — indica qué imagen base
+  descargar. Una "box" en Vagrant es equivalente a una imagen de
+  Docker: un disco preconfigurado, en este caso con Rocky Linux 9 ya
+  instalado, publicado en Vagrant Cloud por el proyecto Rocky. La
+  primera vez que se ejecuta `vagrant up`, Vagrant la descarga y la
+  deja cacheada localmente para arranques futuros.
+
+- **`config.vm.define "dns-dhcp01" do |node|`** — le pone nombre lógico
+  a la VM (`dns-dhcp01`). Este mismo nombre es el que se usa después en
+  `inventory/hosts.yml` y en el comando `vagrant ssh-config dns-dhcp01`;
+  si tuvieras varias VMs, cada una llevaría su propio bloque `define`.
+
+- **`node.vm.hostname = "dns-dhcp01"`** — Vagrant configura el hostname
+  del sistema operativo *dentro* de la VM con este valor apenas arranca,
+  antes de que Ansible toque nada. (El rol `provisioning` vuelve a
+  fijarlo por Ansible más adelante, de forma idempotente, para que el
+  estado quede garantizado también si alguien cambia el hostname a mano
+  y se vuelve a correr el playbook.)
+
+- **`node.vm.network "private_network", ip: "192.168.56.10"`** — esta es
+  la línea más importante para el resto del proyecto. Crea una segunda
+  tarjeta de red, aislada del resto de internet ("host-only"), con IP
+  fija `192.168.56.10`. Es la red donde el DHCP entregará direcciones y
+  donde el DNS escuchará consultas. La primera tarjeta de red (NAT,
+  creada automáticamente por Vagrant y no declarada explícitamente aquí)
+  se deja para uso exclusivo de gestión: salida a internet para
+  `dnf update` y el túnel SSH que usa Ansible.
+
+- **`node.vm.provider "virtualbox" do |vb| ... end`** — ajustes que solo
+  aplican cuando el hipervisor es VirtualBox: cuánta RAM (`vb.memory`) y
+  cuántas CPUs virtuales (`vb.cpus`) tendrá la VM, y el nombre con el
+  que aparecerá en la interfaz de VirtualBox (`vb.name`). Si el taller
+  necesitara más recursos (por ejemplo, para simular más carga en el
+  servidor DNS), este es el único bloque que habría que tocar.
+
+Lo que el `Vagrantfile` **no** hace, a propósito, es instalar o
+configurar DHCP, DNS, ni ningún paquete: eso es responsabilidad total de
+Ansible (`site.yml` y los roles), para mantener una separación clara
+entre "cómo se crea la máquina" y "qué corre dentro de ella".
+
 ## 4. Comandos de ejecución
+
+### Opción A: paso a paso (recomendado la primera vez, para entender qué hace cada comando)
 
 ```bash
 # 1) Clonar el repositorio y entrar en él
@@ -92,13 +146,11 @@ cd ansible-dhcp-dns-rocky9
 # 2) Instalar las colecciones de Ansible requeridas
 ansible-galaxy collection install -r requirements.yml
 
-# 3) Levantar la máquina virtual con Vagrant
-#    (usa --provider=libvirt o --provider=virtualbox según tu entorno;
-#    si no se especifica, Vagrant usa el primer provider disponible)
-vagrant up --provider=libvirt
+# 3) Levantar la máquina virtual con Vagrant (VirtualBox)
+vagrant up --provider=virtualbox
 
 # 4) Generar el archivo de configuración SSH que usará Ansible
-#    (la ruta de la clave privada y el puerto dependen del provider)
+#    (contiene la clave privada y el puerto real que asignó VirtualBox)
 vagrant ssh-config dns-dhcp01 > .vagrant-ssh-config
 
 # 5) Ejecutar el playbook completo
@@ -123,6 +175,28 @@ ansible-playbook site.yml
 > porque Ansible ya asigna automáticamente el nombre del rol como tag
 > implícito a todas sus tareas; por eso `--tags dhcpd` o `--tags bind9`
 > funcionan sin configuración extra.
+
+### Opción B: script automatizado (`deploy.sh`)
+
+Para no repetir los pasos 2 a 5 a mano cada vez que se recrea el
+entorno, el repositorio incluye `deploy.sh`, que encadena exactamente
+esos mismos comandos y se detiene ante el primer error:
+
+```bash
+chmod +x deploy.sh      # solo la primera vez
+
+./deploy.sh             # equivalente a los pasos 2-5 de la Opción A
+./deploy.sh --check     # igual, pero corre el playbook con --check --diff
+./deploy.sh --twice     # corre el playbook dos veces seguidas y muestra
+                         # ambas salidas, para comprobar idempotencia
+                         # en un solo comando
+./deploy.sh --skip-vm   # omite vagrant up/ssh-config; útil si la VM ya
+                         # está levantada y solo quieres re-aplicar el playbook
+```
+
+El script está comentado internamente (ver `deploy.sh`) explicando qué
+hace cada paso; se recomienda revisar primero la Opción A al menos una
+vez para entender el proceso antes de usar el atajo.
 
 ## 5. Verificación de los servicios
 
@@ -195,6 +269,10 @@ mecanismo concreto que lo sostiene:
   `restorecon -v` solo imprime para los archivos que efectivamente
   reetiquetó; si no hay nada que corregir, la tarea se reporta como `ok`.
 
+La forma más rápida de comprobarlo con un solo comando es
+`./deploy.sh --twice` (ver sección 4), que muestra ambas ejecuciones una
+detrás de otra.
+
 ## 7. Troubleshooting
 
 **a) `dhcpd` no arranca o falla con "no address family support"**
@@ -224,5 +302,6 @@ ejecución).
 El arranque de la VM y el sshd pueden tardar más de lo que tarda
 `vagrant up` en devolver el prompt, especialmente en el primer arranque
 tras descargar la box. Espera unos segundos adicionales y vuelve a
-ejecutar `ansible-playbook site.yml`; si el problema persiste, aumenta el
-valor de `timeout` en la tarea `wait_for_connection` del rol `bootstrap`.
+ejecutar `ansible-playbook site.yml` (o `./deploy.sh --skip-vm`); si el
+problema persiste, aumenta el valor de `timeout` en la tarea
+`wait_for_connection` del rol `bootstrap`.
