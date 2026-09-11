@@ -11,7 +11,7 @@ project_network:
   # Interfaz privada creada por Vagrant (`private_network`). En las boxes
   # oficiales de rockylinux/9 aparece como eth1; si tu box usa otro esquema
   # de nombres (ens*, enp*), ajusta este valor.
-  interface: eth1
+  interface: enp0s8
 
 base_packages:
   - git
