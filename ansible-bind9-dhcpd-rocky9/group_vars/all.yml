@@ -1,0 +1,6 @@
+---
+# Variables comunes a todo el laboratorio
+lab_domain: "lab.icesi.local"
+lab_network: "192.168.100.0"
+lab_netmask: "255.255.255.0"
+lab_reverse_zone: "100.168.192.in-addr.arpa"
