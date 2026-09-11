@@ -1,0 +1,37 @@
+{{ ansible_managed | comment(decoration='// ') }}
+options {
+    listen-on port 53 { 127.0.0.1; {{ dns_server_ip }}; };
+    listen-on-v6 port 53 { none; };
+    directory "/var/named";
+    dump-file "/var/named/data/cache_dump.db";
+    statistics-file "/var/named/data/named_stats.txt";
+    memstatistics-file "/var/named/data/named_mem_stats.txt";
+    recursing-file "/var/named/data/named.recursing";
+    secroots-file "/var/named/data/named.secroots";
+    allow-query { {{ dns_allow_query }}; };
+
+    recursion yes;
+    forwarders { {{ dns_forwarders | join('; ') }}; };
+
+    dnssec-validation yes;
+
+    managed-keys-directory "/var/named/dynamic";
+    pid-file "/run/named/named.pid";
+    session-keyfile "/run/named/session.key";
+};
+
+logging {
+    channel default_debug {
+        file "data/named.run";
+        severity dynamic;
+    };
+};
+
+zone "." IN {
+    type hint;
+    file "named.ca";
+};
+
+include "/etc/named/zones.conf";
+include "/etc/named.rfc1912.zones";
+include "/etc/named.root.key";

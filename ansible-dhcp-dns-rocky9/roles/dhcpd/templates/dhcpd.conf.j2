@@ -1,0 +1,13 @@
+{{ ansible_managed | comment }}
+default-lease-time {{ dhcpd_default_lease_time }};
+max-lease-time {{ dhcpd_max_lease_time }};
+authoritative;
+
+option domain-name "{{ dhcpd_domain_name }}";
+option domain-name-servers {{ dhcpd_domain_name_servers | join(', ') }};
+
+subnet {{ dhcpd_subnet }} netmask {{ dhcpd_netmask }} {
+    range {{ dhcpd_range_start }} {{ dhcpd_range_end }};
+    option routers {{ dhcpd_routers }};
+    option broadcast-address {{ dhcpd_subnet.split('.')[0:3] | join('.') }}.255;
+}

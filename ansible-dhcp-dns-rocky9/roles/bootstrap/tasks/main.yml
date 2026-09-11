@@ -1,0 +1,37 @@
+---
+# Este rol corre ANTES de que se pueda asumir que el nodo tiene Python o
+# que ya terminó de arrancar. Por eso usa wait_for_connection y raw en vez
+# de módulos "normales", que dependen de un intérprete remoto.
+
+- name: Esperar a que el nodo acepte conexiones SSH
+  ansible.builtin.wait_for_connection:
+    timeout: 180
+    sleep: 5
+
+- name: Verificar/instalar Python 3 usando raw (no requiere intérprete remoto)
+  ansible.builtin.raw: command -v python3 >/dev/null 2>&1 || (dnf install -y python3 && echo ANSIBLE_PYTHON3_INSTALADO)
+  register: python_bootstrap
+  changed_when: "'ANSIBLE_PYTHON3_INSTALADO' in python_bootstrap.stdout"
+
+- name: Recolectar facts ahora que Python está garantizado
+  ansible.builtin.setup:
+
+- name: Actualizar todos los paquetes del sistema (dnf update)
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+    update_cache: true
+  register: dnf_update_result
+
+- name: Instalar paquetes base del taller
+  ansible.builtin.dnf:
+    name: "{{ base_packages }}"
+    state: present
+
+- name: Reiniciar el nodo (solo si se actualizaron paquetes Y se habilitó explícitamente)
+  ansible.builtin.reboot:
+    reboot_timeout: 300
+    msg: "Reinicio disparado por Ansible tras dnf update"
+  when:
+    - dnf_update_result.changed
+    - reboot_after_update | bool

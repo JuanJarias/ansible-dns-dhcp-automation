@@ -1,0 +1,46 @@
+---
+- name: Instalar el paquete dhcp-server
+  ansible.builtin.dnf:
+    name: dhcp-server
+    state: present
+
+- name: Desplegar plantilla de configuración dhcpd.conf
+  ansible.builtin.template:
+    src: dhcpd.conf.j2
+    dest: /etc/dhcp/dhcpd.conf
+    owner: root
+    group: root
+    mode: "0644"
+    # `validate` ejecuta el comando ANTES de reemplazar el archivo real,
+    # sobre una copia temporal (%s). Si dhcpd -t falla, Ansible aborta la
+    # tarea y el archivo en producción nunca se toca. Esto reemplaza la
+    # necesidad de una tarea `command: dhcpd -t` aparte, y no genera un
+    # "changed" propio: el "changed" de esta tarea refleja únicamente si
+    # el contenido de dhcpd.conf cambió de verdad.
+    validate: "dhcpd -t -cf %s"
+  notify: reiniciar dhcpd
+
+- name: Restringir dhcpd a la interfaz privada del proyecto
+  # Sin esto, dhcpd intentaría escuchar también en la interfaz NAT que
+  # crea Vagrant por defecto (eth0), lo cual puede interferir con la red
+  # del host/anfitrión y generar errores de arranque del servicio.
+  ansible.builtin.template:
+    src: dhcpd-sysconfig.j2
+    dest: /etc/sysconfig/dhcpd
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reiniciar dhcpd
+
+- name: Abrir el servicio dhcp en firewalld
+  ansible.posix.firewalld:
+    service: dhcp
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Habilitar e iniciar el servicio dhcpd
+  ansible.builtin.systemd:
+    name: dhcpd
+    enabled: true
+    state: started

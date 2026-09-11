@@ -1,0 +1,12 @@
+{{ ansible_managed | comment(decoration='// ') }}
+zone "{{ dns_domain }}" IN {
+    type master;
+    file "/var/named/zones/db.{{ dns_domain }}";
+    allow-transfer { {{ dns_allow_transfer }}; };
+};
+
+zone "{{ dns_reverse_zone }}" IN {
+    type master;
+    file "/var/named/zones/db.{{ dns_reverse_zone }}";
+    allow-transfer { {{ dns_allow_transfer }}; };
+};

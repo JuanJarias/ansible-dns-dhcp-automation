@@ -1,0 +1,24 @@
+---
+# Ajustes de "identidad" del nodo. Se separan del rol bootstrap porque
+# bootstrap trata con el sistema operativo en general (paquetes, updates)
+# mientras que este rol trata con la configuración propia de ESTE proyecto
+# (nombre del nodo, resolución local, huso horario).
+
+- name: Establecer el hostname del nodo
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Configurar zona horaria
+  community.general.timezone:
+    name: "America/Bogota"
+
+- name: Asegurar entradas en /etc/hosts para todos los nodos del proyecto
+  # Útil para que la resolución de nombres entre nodos funcione incluso
+  # antes de que el servicio DNS del proyecto esté activo (por ejemplo,
+  # durante el propio arranque de bind9).
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^[0-9.]+\s+{{ item }}\.{{ project_domain }}\s+{{ item }}$'
+    line: "{{ hostvars[item].project_network.server_ip }} {{ item }}.{{ project_domain }} {{ item }}"
+    state: present
+  loop: "{{ groups['all'] }}"

@@ -1,0 +1,87 @@
+---
+- name: Instalar los paquetes de BIND
+  ansible.builtin.dnf:
+    name:
+      - bind
+      - bind-utils
+    state: present
+
+- name: Crear el directorio de zonas del proyecto dentro de /var/named
+  # Se usa /var/named (y no /etc/named/zones) porque la política SELinux
+  # targeted de Rocky ya etiqueta ese árbol como named_zone_t por defecto;
+  # así se evita tener que definir un contexto SELinux personalizado.
+  ansible.builtin.file:
+    path: /var/named/zones
+    state: directory
+    owner: named
+    group: named
+    mode: "0750"
+
+- name: Desplegar la zona directa
+  ansible.builtin.template:
+    src: zone.forward.j2
+    dest: "/var/named/zones/db.{{ dns_domain }}"
+    owner: named
+    group: named
+    mode: "0640"
+    validate: "named-checkzone {{ dns_domain }} %s"
+  notify: reiniciar named
+
+- name: Desplegar la zona inversa
+  ansible.builtin.template:
+    src: zone.reverse.j2
+    dest: "/var/named/zones/db.{{ dns_reverse_zone }}"
+    owner: named
+    group: named
+    mode: "0640"
+    validate: "named-checkzone {{ dns_reverse_zone }} %s"
+  notify: reiniciar named
+
+- name: Desplegar la definición de zonas (zones.conf)
+  # Separado de named.conf a propósito: agregar una zona nueva en el
+  # futuro solo implica tocar este archivo, sin arriesgar el resto de
+  # las opciones globales del servicio.
+  ansible.builtin.template:
+    src: zones.conf.j2
+    dest: /etc/named/zones.conf
+    owner: root
+    group: named
+    mode: "0640"
+  notify: reiniciar named
+
+- name: Desplegar named.conf principal
+  ansible.builtin.template:
+    src: named.conf.j2
+    dest: /etc/named.conf
+    owner: root
+    group: named
+    mode: "0640"
+    # Igual que con dhcpd -t: named-checkconf valida sobre una copia
+    # temporal antes de tocar el archivo real. En este punto zones.conf
+    # y los archivos de zona ya existen (tareas anteriores), así que el
+    # `include` dentro de named.conf resuelve correctamente durante la
+    # validación.
+    validate: "named-checkconf %s"
+  notify: reiniciar named
+
+- name: Restaurar contexto SELinux de los archivos del servicio
+  # Tarea de comando justificada: no existe módulo nativo equivalente a
+  # restorecon. changed_when se ajusta explícitamente al patrón que
+  # restorecon imprime SOLO cuando de verdad reetiqueta algo, para que
+  # esta tarea no aparezca como "changed" en cada ejecución.
+  ansible.builtin.command: restorecon -Rv /etc/named /etc/named.conf /var/named
+  register: restorecon_result
+  changed_when: "'Relabeled' in restorecon_result.stdout"
+
+- name: Abrir el servicio dns en firewalld
+  ansible.posix.firewalld:
+    service: dns
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Habilitar e iniciar el servicio named
+  ansible.builtin.systemd:
+    name: named
+    enabled: true
+    state: started

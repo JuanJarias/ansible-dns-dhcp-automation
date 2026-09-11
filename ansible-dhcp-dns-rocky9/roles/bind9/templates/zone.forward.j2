@@ -1,0 +1,14 @@
+$TTL 86400
+@   IN  SOA  {{ inventory_hostname }}.{{ dns_domain }}. admin.{{ dns_domain }}. (
+        {{ dns_zone_serial }} ; Serial (estático, ver group_vars/dns_servers.yml)
+        3600                  ; Refresh
+        1800                  ; Retry
+        604800                ; Expire
+        86400 )               ; TTL negativo
+
+    IN  NS   {{ inventory_hostname }}.{{ dns_domain }}.
+    IN  A    {{ dns_server_ip }}
+
+{% for record in dns_records %}
+{{ record.name }}    IN  A    {{ record.ip }}
+{% endfor %}

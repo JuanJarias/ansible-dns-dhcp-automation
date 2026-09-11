@@ -1,0 +1,35 @@
+---
+# Playbook orquestador. El orden de los plays importa:
+#   1) bootstrap    -> garantiza Python/SSH/paquetes base en TODOS los nodos
+#   2) provisioning -> ajustes de identidad del nodo (hostname, /etc/hosts, tz)
+#   3) dhcpd        -> solo en el grupo dhcp_servers
+#   4) bind9        -> solo en el grupo dns_servers
+#
+# bootstrap va primero y con gather_facts en false porque en un nodo recién
+# creado no hay garantía de que exista un intérprete Python; el propio rol
+# se encarga de comprobarlo/instalarlo con `raw` antes de recolectar facts.
+
+- name: Bootstrap del sistema operativo (paquetes base, actualización)
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+    - bootstrap
+
+- name: Provisionamiento de identidad del nodo (hostname, /etc/hosts, timezone)
+  hosts: all
+  become: true
+  roles:
+    - provisioning
+
+- name: Configurar servicio DHCP
+  hosts: dhcp_servers
+  become: true
+  roles:
+    - dhcpd
+
+- name: Configurar servicio DNS (BIND9)
+  hosts: dns_servers
+  become: true
+  roles:
+    - bind9

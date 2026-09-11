@@ -1,0 +1,12 @@
+---
+# Colecciones necesarias para ejecutar este proyecto.
+# Instalar con: ansible-galaxy collection install -r requirements.yml
+collections:
+  # Provee ansible.posix.firewalld (gestión de firewalld sin usar shell/command).
+  - name: ansible.posix
+    version: ">=1.5.4"
+
+  # Provee community.general.timezone (configuración de zona horaria de forma
+  # idempotente y nativa, en vez de manipular /etc/localtime a mano).
+  - name: community.general
+    version: ">=8.0.0"

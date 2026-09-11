@@ -1,0 +1,11 @@
+$TTL 86400
+@   IN  SOA  {{ inventory_hostname }}.{{ dns_domain }}. admin.{{ dns_domain }}. (
+        {{ dns_zone_serial }} ; Serial (igual al de la zona directa por convención)
+        3600
+        1800
+        604800
+        86400 )
+
+    IN  NS   {{ inventory_hostname }}.{{ dns_domain }}.
+
+{{ dns_server_ip.split('.')[3] }}    IN  PTR  {{ inventory_hostname }}.{{ dns_domain }}.

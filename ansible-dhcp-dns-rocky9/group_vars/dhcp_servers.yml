@@ -1,0 +1,18 @@
+---
+# Variables específicas del rol dhcpd.
+
+dhcpd_interface: "{{ project_network.interface }}"
+dhcpd_subnet: "{{ project_network.subnet }}"
+dhcpd_netmask: "{{ project_network.netmask }}"
+
+dhcpd_range_start: 192.168.56.100
+dhcpd_range_end: 192.168.56.200
+
+dhcpd_default_lease_time: 600
+dhcpd_max_lease_time: 7200
+
+dhcpd_domain_name: "{{ project_domain }}"
+dhcpd_domain_name_servers:
+  - "{{ project_network.server_ip }}"
+
+dhcpd_routers: 192.168.56.1

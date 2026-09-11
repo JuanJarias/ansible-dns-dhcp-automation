@@ -1,0 +1,25 @@
+---
+# Variables específicas del rol bind9.
+
+dns_domain: "{{ project_domain }}"
+dns_reverse_zone: "56.168.192.in-addr.arpa"
+dns_server_ip: "{{ project_network.server_ip }}"
+
+# Serial de las zonas: es ESTÁTICO a propósito (formato YYYYMMDDNN).
+# Si el playbook lo generara con un timestamp dinámico (p. ej. epoch),
+# el contenido de la zona cambiaría en cada ejecución y rompería la
+# idempotencia. Increméntalo manualmente cada vez que edites dns_records.
+dns_zone_serial: "2026091101"
+
+dns_forwarders:
+  - 8.8.8.8
+  - 1.1.1.1
+
+dns_allow_query: "any"
+dns_allow_transfer: "none"
+
+dns_records:
+  - name: dns-dhcp01
+    ip: "{{ project_network.server_ip }}"
+  - name: www
+    ip: "{{ project_network.server_ip }}"

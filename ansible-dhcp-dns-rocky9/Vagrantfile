@@ -1,0 +1,38 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+#
+# Este Vagrantfile SOLO se encarga de crear y arrancar la máquina virtual.
+# A propósito NO se usa el provisioner "ansible" de Vagrant: el taller
+# ejecuta el playbook manualmente con `ansible-playbook`, para que se vea
+# y controle cada corrida (incluida la segunda ejecución que demuestra
+# idempotencia) en lugar de que Vagrant la esconda dentro de `vagrant up`.
+
+Vagrant.configure("2") do |config|
+  # Imagen oficial de Rocky Linux 9 mantenida por el proyecto Rocky
+  # (disponible tanto para el provider libvirt como para virtualbox).
+  config.vm.box = "rockylinux/9"
+
+  config.vm.define "dns-dhcp01" do |node|
+    node.vm.hostname = "dns-dhcp01"
+
+    # Red privada host-only con IP fija: es la interfaz en la que el
+    # servidor DHCP entregará direcciones y en la que BIND9 escuchará
+    # consultas DNS. La interfaz NAT (eth0) que Vagrant crea por defecto
+    # se deja intacta y solo se usa para salida a internet y SSH de gestión;
+    # dhcpd se restringe explícitamente a la interfaz privada (ver el rol
+    # dhcpd) para no responder ofertas DHCP en la red NAT del host.
+    node.vm.network "private_network", ip: "192.168.56.10"
+
+    # --- Provider libvirt/KVM (recomendado en Linux) ---
+    node.vm.provider "libvirt" do |lv|
+      lv.memory = 1024
+      lv.cpus   = 1
+    end
+
+    # --- Provider VirtualBox (alternativa multiplataforma) ---
+    node.vm.provider "virtualbox" do |vb|
+      vb.memory = 1024
+      vb.cpus   = 1
+    end
+  end
+end

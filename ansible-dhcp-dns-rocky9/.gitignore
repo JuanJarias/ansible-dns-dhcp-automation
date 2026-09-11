@@ -1,0 +1,21 @@
+# Ansible
+*.retry
+.ansible/
+*.log
+
+# Vagrant
+.vagrant/
+*.box
+.vagrant-ssh-config
+
+# Secretos / claves
+*.pem
+*.key
+group_vars/vault.yml
+group_vars/*/vault.yml
+
+# Varios
+*.swp
+*.swo
+.DS_Store
+__pycache__/

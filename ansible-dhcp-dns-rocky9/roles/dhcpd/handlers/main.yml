@@ -1,0 +1,5 @@
+---
+- name: reiniciar dhcpd
+  ansible.builtin.systemd:
+    name: dhcpd
+    state: restarted

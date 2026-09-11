@@ -1,0 +1,27 @@
+---
+# Variables compartidas por todos los nodos del proyecto.
+
+project_domain: "lab.local"
+
+project_network:
+  subnet: 192.168.56.0
+  netmask: 255.255.255.0
+  cidr: 24
+  server_ip: 192.168.56.10
+  # Interfaz privada creada por Vagrant (`private_network`). En las boxes
+  # oficiales de rockylinux/9 aparece como eth1; si tu box usa otro esquema
+  # de nombres (ens*, enp*), ajusta este valor.
+  interface: eth1
+
+base_packages:
+  - git
+  - vim
+  - curl
+  - wget
+  - bind-utils
+  - tcpdump
+
+# Por defecto NO se reinicia automáticamente el nodo tras `dnf update`,
+# aunque haya actualizado el kernel. Se deja como interruptor explícito
+# para que el comportamiento sea predecible durante el taller.
+reboot_after_update: false
