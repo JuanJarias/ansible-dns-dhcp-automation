@@ -72,14 +72,7 @@ necesitas:
     └── bind9/                # LÓGICA DEL TALLER: servidor DNS
 ```
 
-Si tu interés es la parte de **servicios de red** (que es el objetivo del
-taller), puedes tratar `bootstrap/` y `provisioning/` como caja negra: solo
-necesitas saber que garantizan un nodo con Python, paquetes actualizados,
-hostname correcto y resolución básica en `/etc/hosts`. Donde vale la pena
-detenerse a leer con cuidado es en `roles/dhcpd/` y `roles/bind9/`
-(tareas, *handlers* y plantillas), y en `group_vars/dhcp_servers.yml` /
-`group_vars/dns_servers.yml`, que es donde vive toda la configuración de
-red del laboratorio (rangos DHCP, dominio, registros DNS, zona inversa).
+
 
 ### Cómo funciona el Vagrantfile
 
